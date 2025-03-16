@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "mafat-challenge"
+version = "0.1.0"
+description = ""
+authors = ["tomtou-bspace <tom.touati@brain.space>"]
+readme = "README.md"
+[[tool.poetry.packages]]
+include = "code"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+ray = {extras = ["default"], version = "^2.43.0"}
+pandas = "*"
+numpy = "*"
+scikit-learn = "*"
+seaborn = "*"
+matplotlib = "*"
+xgboost = "*"
+ipympl = "*"
+ipywidgets = "*"
+ipykernel = "*"
+modin = "*"
+sqlalchemy = "^2.0.39"
+pyarrow = "^19.0.1"
+memray = "^1.16.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

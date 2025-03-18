@@ -23,6 +23,7 @@ modin = "*"
 sqlalchemy = "^2.0.39"
 pyarrow = "^19.0.1"
 memray = "^1.16.0"
+neptune = "^1.13.0"
 
 [build-system]
 requires = ["poetry-core"]

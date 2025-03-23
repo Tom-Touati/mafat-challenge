@@ -3,6 +3,7 @@ import xgboost
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
+from sklearn.metrics import roc_auc_score
 
 class model:
     def __init__(self,with_neptune=False):
@@ -16,25 +17,13 @@ class model:
             learning_rate=0.1,
             n_estimators=150, 
             max_depth=6, 
-            objective='binary:logistic'
+            objective='binary:logistic',
+            eval_metric=roc_auc_score
         )
         self.domain_activity = None
         self.user_activity = None
         self.best_features = None
-        if with_neptune:
-            self.init_neptune()
 
-    def init_neptune(self,tags=["time-based-models", "activity-based-features"]):
-        self.run = neptune.init(
-                project="tom.touati/web-segmentation",  # replace with your project
-                api_token=os.environ["NEPTUNE_API_TOKEN"],
-                capture_stdout=True,
-                capture_stderr=True,
-                capture_hardware_metrics=True,
-                tags=tags,
-                description="User activity patterns analysis",
-                mode=NEPTUNE_MODE
-            )
     def process_activity_timeseries(self, domain_df, bin_hours=6, gaussian_filter=True, 
                                   n_days_each_side=3, std=1.5, drop_na=True, drop_zeros=False):
         activity_per_3h = domain_df[["Device_ID"]].resample(f'{str(bin_hours)}h').nunique()
@@ -89,11 +78,15 @@ class model:
         final_scores_pivot = final_scores.to_frame().reset_index().pivot(
             index="Device_ID",
             columns="Domain_Name"
-        ).fillna(0)
+        ).droplevel(0,axis="columns")
+        missing_columns = [x for x in self.best_features if x not in final_scores_pivot.columns]
 
         final_scores_pivot = (final_scores_pivot-final_scores_pivot.values.min())/(
             final_scores_pivot.values.max()-final_scores_pivot.values.min())*2-1
-            
+        final_scores_pivot.fillna(0.0, inplace=True)
+        final_scores_pivot[missing_columns] = 0.0    
+        # final_scores_pivot.fillna(0.0, inplace=True)
+        final_scores_pivot = final_scores_pivot[self.best_features]    
         return final_scores_pivot
 
     def load(self, dir_path):
@@ -104,9 +97,9 @@ class model:
         import json
         model_path = os.path.join(dir_path, 'XGB_model.json')
         self.model.load_model(model_path)
-        best_features_path = os.path.join(dir_path, 'selected_features.json')
+        best_features_path = os.path.join(dir_path, 'best_features.json')
         with open(best_features_path, "r") as fp:
-            self.best_features = json.load(fp)
+            self.best_features = [int(x) for x in json.load(fp)]
         domain_activity_path = os.path.join(dir_path, 'best_domain_activity.parquet')
         self.domain_activity = pd.read_parquet(domain_activity_path)
 
@@ -117,7 +110,8 @@ class model:
         # Process user timeseries
         X = X.copy()
         X = X[X['Domain_Name'].isin([int(x) for x in self.best_features])]
-        X['Datetime'] = pd.to_datetime(X['Datetime'])
+        if X['Datetime'].dtype == 'O':
+            X['Datetime'] = pd.to_datetime(X['Datetime'])
         X["Device_ID"] = 1
         X.set_index(['Datetime'], inplace=True)
         

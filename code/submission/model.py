@@ -69,7 +69,7 @@ class model:
     def get_user_domain_scores(self, user_timeseries, domain_activity):
         merged_df = domain_activity.reset_index().merge(
             user_timeseries.reset_index(), 
-            how="inner", 
+            how="left", 
             on=["Domain_Name", "Datetime"]
         ).set_index(["Datetime", "Domain_Name", "Device_ID"])
 
@@ -116,7 +116,7 @@ class model:
         '''
         # Process user timeseries
         X = X.copy()
-        X = X[X['Domain_Name'].isin([int(x) for x in self.best_features)]
+        X = X[X['Domain_Name'].isin([int(x) for x in self.best_features])]
         X['Datetime'] = pd.to_datetime(X['Datetime'])
         X["Device_ID"] = 1
         X.set_index(['Datetime'], inplace=True)

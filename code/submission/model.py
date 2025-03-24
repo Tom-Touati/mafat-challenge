@@ -80,12 +80,11 @@ class model:
             columns="Domain_Name"
         ).droplevel(0,axis="columns")
         missing_columns = [x for x in self.best_features if x not in final_scores_pivot.columns]
-
-        final_scores_pivot = (final_scores_pivot-final_scores_pivot.values.min())/(
-            final_scores_pivot.values.max()-final_scores_pivot.values.min())*2-1
         final_scores_pivot.fillna(0.0, inplace=True)
         final_scores_pivot[missing_columns] = 0.0    
-        # final_scores_pivot.fillna(0.0, inplace=True)
+        final_scores_pivot = (final_scores_pivot-final_scores_pivot.values.min())/(
+            final_scores_pivot.values.max()-final_scores_pivot.values.min())*2-1
+            
         final_scores_pivot = final_scores_pivot[self.best_features]    
         return final_scores_pivot
 

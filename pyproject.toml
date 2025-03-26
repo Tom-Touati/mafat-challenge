@@ -24,6 +24,10 @@ sqlalchemy = "^2.0.39"
 pyarrow = "^19.0.1"
 memray = "^1.16.0"
 neptune = "^1.13.0"
+fancyimpute = "^0.7.0"
+missingpy = "^0.2.0"
+missforest = "^4.2.3"
+implicit = "^0.7.2"
 
 [build-system]
 requires = ["poetry-core"]

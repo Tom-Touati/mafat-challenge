@@ -4,7 +4,8 @@ from sklearn.feature_selection import RFE
 from sklearn.metrics import roc_auc_score
 
 
-def join_features(device_targets, weighted_final_scores, domain_usage_proportion, cls_proportion, psd_df,domains_visited_proportion):
+def join_features(device_targets, weighted_final_scores, domain_usage_proportion, 
+                  cls_proportion, psd_df,domains_visited_proportion,mean_probability_score):
     final_features = device_targets.set_index(
         "Device_ID").join(weighted_final_scores.rename(columns = lambda x: "p_"+str(x)
             ), how="left")
@@ -16,6 +17,9 @@ def join_features(device_targets, weighted_final_scores, domain_usage_proportion
             ), how="left")
     final_features = final_features.join(domains_visited_proportion.rename(columns = lambda x: "domains_visited_"+str(x)
             ), how="left")
+    #create for mean_probability_score
+    final_features = final_features.join(mean_probability_score.rename(columns = lambda x: "mean_p_"+str(x),
+    ), how="left")
     # final_features = final_features.join(device_domain_PCA,how="left")
     # if active_days is not None:
     #     final_features = final_features.join(active_days,how="left")

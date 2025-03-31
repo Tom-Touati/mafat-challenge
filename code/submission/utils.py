@@ -1,7 +1,12 @@
 import modin.pandas as mpd
 from sklearn.preprocessing import MinMaxScaler,StandardScaler
-def z_normalize_by_all(df,train_devices,per_column = True,fillval=0):
-
+def z_normalize_by_all(df,train_devices,per_column = True,fillval=0,scaler=None):
+    if scaler is not None:
+        df.iloc[:, :] = scaler.transform(
+            df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
+        if fillval:
+            df.fillna(fillval,inplace=True)
+        return
     scaler = StandardScaler()
     train_data = df.loc[train_devices]
     scaler.fit(train_data if per_column else train_data.values.reshape(-1, 1))
@@ -18,7 +23,11 @@ def z_normalize_by_all(df,train_devices,per_column = True,fillval=0):
         "n_samples_seen_": int(scaler.n_samples_seen_),
     }
     return params
-def min_max_scale_all_values(df, train_devices, per_column=False):
+def min_max_scale_all_values(df, train_devices, per_column=False,scaler=None):
+    if scaler is not None:
+        df.iloc[:, :] = scaler.transform(
+            df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
+        return
     # Create MinMaxScaler and fit on training data
     scaler = MinMaxScaler(feature_range=(-1, 1))
     train_data = df.loc[train_devices]

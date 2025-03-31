@@ -41,7 +41,7 @@ def load_and_prepare_data():
     db_df.set_index('Datetime', inplace=True)
     db_df = db_df.astype( {'Domain_Name': 'uint32', 'Device_ID': 'uint32', 'Target': 'uint8'})
     return db_df
-def get_cls_data():
+def get_cls_data(db_df=None):
     """
     Feature engeinering: For each Device_ID calculate the proportions of all the domain_cls he entered.
 
@@ -57,6 +57,11 @@ def get_cls_data():
     dataframe
         A dataframe with the proportions for each Device_IDs and Domain_cls.
     """
+    if db_df is not None:
+        return db_df[['Device_ID', "Domain_cls1",
+                    "Domain_cls2",
+                    "Domain_cls3",
+                    "Domain_cls4"]]
     freeze_support()
     dbfile = '../../data/training_set.db'
 
@@ -75,7 +80,10 @@ def get_cls_data():
                     where Domain_Name != 1732927 and Domain_cls1 != 0 and Domain_cls2 != 0 and Domain_cls3 != 0 and Domain_cls4 != 0
                     '''
 
-    df = mpd.read_sql(sql,conn, columns = ['Device_ID','Domain_cls', 'proportion'])
+    df = mpd.read_sql(sql,conn, columns = ['Device_ID', "Domain_cls1",
+                    "Domain_cls2",
+                    "Domain_cls3",
+                    "Domain_cls4"])
     
     return df
 # prepare training data

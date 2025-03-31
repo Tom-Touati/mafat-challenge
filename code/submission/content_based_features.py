@@ -10,6 +10,7 @@ def get_cls_proportion(df):
     
     df.columns = [f"cls_{col}" for col in df.columns]
     df.rename({"cls_Device_ID":"Device_ID"},axis=1,inplace=True)
+    print("check if device id is in columns", "Device_ID" in df.columns)
     df.index = df.index.droplevel(-1)
     return df
 def get_proportion_of_domains_visited(df):

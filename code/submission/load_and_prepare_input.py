@@ -10,17 +10,13 @@ import modin.pandas as mpd
 # NPartitions.put(16)
 def load_data_from_db(con,domain_cls=False,only_domain=False):
     try:
-        additional_query = ""
-        if domain_cls:
-            additional_query = ",Domain_cls1,Domain_cls2,Domain_cls3,Domain_cls4"
-        device_ids_query = f"""SELECT Domain_Name, Device_ID, Target,Datetime{additional_query} from data"""
+        device_ids_query = f"""SELECT * from data
+        WHERE Domain_Name != 1732927
+        """
         
-        if only_domain:
-            device_ids_query = f"""SELECT Domain_Name{additional_query} from data"""
         # WHERE Domain_Name != 1732927 """
         df = mpd.read_sql(device_ids_query, con
                          )._repartition()
-        df = df[df['Domain_Name'] != 1732927]
         return df
     except Exception as e:
         print(f"Error loading data: {e}")
@@ -39,7 +35,7 @@ def load_and_prepare_data():
     del conn
     db_df['Datetime'] = mpd.to_datetime(db_df['Datetime'])
     db_df.set_index('Datetime', inplace=True)
-    db_df = db_df.astype( {'Domain_Name': 'uint32', 'Device_ID': 'uint32', 'Target': 'uint8'})
+    db_df = db_df.astype( {'Domain_Name': 'uint32', 'Device_ID': 'uint32', 'Target': 'uint8', 'Domain_cls1': 'uint32', 'Domain_cls2': 'uint32', 'Domain_cls3': 'uint32', 'Domain_cls4': 'uint32',"URL":"uint32"})
     return db_df
 def get_cls_data(db_df=None):
     """
@@ -69,7 +65,7 @@ def get_cls_data(db_df=None):
 
     # Can use get_connection to get underlying sqlalchemy engine
     conn.get_connection()
-    sql = '''SELECT
+    sql = '''SELECT Datetime
                     Device_ID,
                     Domain_Name,
                     Domain_cls1,
@@ -80,12 +76,13 @@ def get_cls_data(db_df=None):
                     where Domain_Name != 1732927 and Domain_cls1 != 0 and Domain_cls2 != 0 and Domain_cls3 != 0 and Domain_cls4 != 0
                     '''
 
-    df = mpd.read_sql(sql,conn, columns = ['Device_ID', "Domain_cls1",
+    df = mpd.read_sql(sql,conn, columns = ['Device_ID','Domain_Name' "Domain_cls1",
                     "Domain_cls2",
                     "Domain_cls3",
                     "Domain_cls4"])
     
     return df
+
 # prepare training data
 import matplotlib.pyplot as plt
 #train test split

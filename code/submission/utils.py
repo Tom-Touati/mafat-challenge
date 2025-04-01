@@ -81,4 +81,4 @@ def cleanup_memory():
     if sys.platform.startswith('linux'):
         libc = ctypes.CDLL('libc.so.6')
         # MALLOC_TRIM(0) releases memory back to OS if possible
-        libc.malloc_trim(0)
+        print(libc.malloc_trim(0))

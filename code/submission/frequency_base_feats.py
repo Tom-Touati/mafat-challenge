@@ -70,19 +70,20 @@ def get_device_domain_pca(user_activity_timeseries, n_components=100):
 from scipy import fft
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-def get_ps_df(user_activity_timeseries,train_devices):
-    total_user_activity = user_activity_timeseries.groupby(["Device_ID","Datetime"]).sum()
-    total_user_activity = total_user_activity.unstack()
-    total_user_activity = total_user_activity.fillna(0)
-    power_spectrums = np.abs(fft.fft(total_user_activity.T.values))**2
+def get_ps_df(db_df):
+    device_activity_ts = db_df.groupby("Device_ID")["Domain_Name"].resample("3H").count()
+    device_activity_ts = device_activity_ts.unstack().fillna(0)
+    # device_activity_ts = StandardScaler().fit_transform(device_activity_ts.T)
+    power_spectrums = np.abs(fft.rfft(device_activity_ts,axis=1))**2
+    
     sample_d = 3*60*60
     
-    freqs = fft.fftfreq(total_user_activity.shape[1],d=sample_d)
+    freqs = fft.rfftfreq(device_activity_ts.shape[1],d=sample_d)
     freq_mask = freqs>=0
-    power_spectrums = power_spectrums[freq_mask]
+    power_spectrums = power_spectrums[:,freq_mask]
     freqs = freqs[freq_mask]
 
-    psd_df = mpd.DataFrame(power_spectrums.T,index=total_user_activity.index,columns=freqs)
+    psd_df = mpd.DataFrame(power_spectrums,index=device_activity_ts.index,columns=freqs)
     # Get power spectra for training devices only
 
     

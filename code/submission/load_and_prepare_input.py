@@ -23,12 +23,10 @@ def load_domain_data_from_db(con,domain_cls=False,only_domain=False):
         raise
 def load_cls_data_from_db(con,domain_cls=False,only_domain=False):
     try:
-        device_ids_query = f"""SELECT Datetime,Device_ID,Domain_cls1,Domain_cls2,Domain_cls3,Domain_cls4 from data
+        device_ids_query = f"""SELECT Datetime,Device_ID,Domain_cls1,Domain_cls2,Domain_cls3,Domain_cls4,Target
         from data
         WHERE Domain_Name != 1732927
         """
-        
-        # WHERE Domain_Name != 1732927 """
         df = mpd.read_sql(device_ids_query, con
                          )._repartition()
         return df
@@ -53,9 +51,9 @@ def load_and_prepare_data(data_type="domain"):
     db_df['Datetime'] = mpd.to_datetime(db_df['Datetime'])
     db_df.set_index('Datetime', inplace=True)
     if data_type=="domain":
-        db_df = db_df.astype( {'Domain_Name': 'uint32', 'Device_ID': 'uint32', 'Target': 'category'})
+        db_df = db_df.astype( {'Domain_Name': 'uint32', 'Device_ID': 'uint32', 'Target': 'uint8'})
     elif data_type=="cls":
-        db_df = db_df.astype( {'Device_ID': 'uint32','Domain_cls1': 'category', 'Domain_cls2': 'category', 'Domain_cls3': 'category', 'Domain_cls4': 'category','Target': 'category'})
+        db_df = db_df.astype( {'Device_ID': 'uint32','Domain_cls1': 'uint32','Domain_cls2': 'uint32', 'Domain_cls3': 'uint32', 'Domain_cls4': 'uint32','Target': 'uint32'})
     return db_df
 
 # prepare training data

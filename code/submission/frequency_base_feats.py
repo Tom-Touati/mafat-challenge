@@ -84,14 +84,7 @@ def get_ps_df(user_activity_timeseries,train_devices):
 
     psd_df = mpd.DataFrame(power_spectrums.T,index=total_user_activity.index,columns=freqs)
     # Get power spectra for training devices only
-    train_psd = psd_df.loc[train_devices]
 
-    # Create and fit scaler on training data
-    scaler = StandardScaler()
-    # scaler.fit(train_psd.T)
-
-    # Transform all data using fitted scaler
-    psd_df.iloc[:,:] = scaler.fit_transform(psd_df.values)
     
     return psd_df
 # Convert to dataframe and normalize

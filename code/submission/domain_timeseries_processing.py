@@ -2,7 +2,7 @@ import json
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 from functools import partial
-
+import ray
 
 def process_activity_timeseries(domain_df, bin_hours=6, gaussian_filter=True, n_days_each_side=3, std=1.5, drop_na=True, drop_zeros=False):
     activity_per_3h = domain_df[["Device_ID"]].resample(

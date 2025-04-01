@@ -8,9 +8,9 @@ import modin.pandas as mpd
   # Modin will use Ray
 # ray.init()
 # NPartitions.put(16)
-def load_data_from_db(con,domain_cls=False,only_domain=False):
+def load_domain_data_from_db(con,domain_cls=False,only_domain=False):
     try:
-        device_ids_query = f"""SELECT * from data
+        device_ids_query = f"""SELECT Datetime,Device_ID,Domain_Name,Target from data
         WHERE Domain_Name != 1732927
         """
         
@@ -21,8 +21,21 @@ def load_data_from_db(con,domain_cls=False,only_domain=False):
     except Exception as e:
         print(f"Error loading data: {e}")
         raise
-
-def load_and_prepare_data():
+def load_cls_data_from_db(con,domain_cls=False,only_domain=False):
+    try:
+        device_ids_query = f"""SELECT Datetime,Device_ID,Domain_cls1,Domain_cls2,Domain_cls3,Domain_cls4 from data
+        from data
+        WHERE Domain_Name != 1732927
+        """
+        
+        # WHERE Domain_Name != 1732927 """
+        df = mpd.read_sql(device_ids_query, con
+                         )._repartition()
+        return df
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        raise
+def load_and_prepare_data(data_type="domain"):
     freeze_support()
     dbfile = '../../data/training_set.db'
 
@@ -30,58 +43,20 @@ def load_and_prepare_data():
 
     # Can use get_connection to get underlying sqlalchemy engine
     conn.get_connection()
-    db_df = load_data_from_db(conn)
+    if data_type=="domain":
+        db_df = load_domain_data_from_db(conn)
+    elif data_type=="cls":
+        db_df = load_cls_data_from_db(conn)
+    
     print(db_df.head())
     del conn
     db_df['Datetime'] = mpd.to_datetime(db_df['Datetime'])
     db_df.set_index('Datetime', inplace=True)
-    db_df = db_df.astype( {'Domain_Name': 'uint32', 'Device_ID': 'uint32', 'Target': 'uint8', 'Domain_cls1': 'uint32', 'Domain_cls2': 'uint32', 'Domain_cls3': 'uint32', 'Domain_cls4': 'uint32',"URL":"uint32"})
+    if data_type=="domain":
+        db_df = db_df.astype( {'Domain_Name': 'uint32', 'Device_ID': 'uint32', 'Target': 'category'})
+    elif data_type=="cls":
+        db_df = db_df.astype( {'Device_ID': 'uint32','Domain_cls1': 'category', 'Domain_cls2': 'category', 'Domain_cls3': 'category', 'Domain_cls4': 'category','Target': 'category'})
     return db_df
-def get_cls_data(db_df=None):
-    """
-    Feature engeinering: For each Device_ID calculate the proportions of all the domain_cls he entered.
-
-    Parameters
-    ----------
-    conn: connection
-        A connection object to the database.
-    device_list : list
-        A list of Device_IDs to calculate their proportions.
-
-    Returns
-    -------
-    dataframe
-        A dataframe with the proportions for each Device_IDs and Domain_cls.
-    """
-    if db_df is not None:
-        return db_df[['Device_ID', "Domain_cls1",
-                    "Domain_cls2",
-                    "Domain_cls3",
-                    "Domain_cls4"]]
-    freeze_support()
-    dbfile = '../../data/training_set.db'
-
-    conn = ModinDatabaseConnection('sqlalchemy', f'sqlite:///{dbfile}')
-
-    # Can use get_connection to get underlying sqlalchemy engine
-    conn.get_connection()
-    sql = '''SELECT Datetime
-                    Device_ID,
-                    Domain_Name,
-                    Domain_cls1,
-                    Domain_cls2,
-                    Domain_cls3,
-                    Domain_cls4
-                    from data
-                    where Domain_Name != 1732927 and Domain_cls1 != 0 and Domain_cls2 != 0 and Domain_cls3 != 0 and Domain_cls4 != 0
-                    '''
-
-    df = mpd.read_sql(sql,conn, columns = ['Device_ID','Domain_Name' "Domain_cls1",
-                    "Domain_cls2",
-                    "Domain_cls3",
-                    "Domain_cls4"])
-    
-    return df
 
 # prepare training data
 import matplotlib.pyplot as plt

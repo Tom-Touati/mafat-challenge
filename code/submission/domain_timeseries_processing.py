@@ -120,15 +120,14 @@ def get_user_domain_scores(domain_activity_timeseries, user_activity_timeseries)
 
 import matplotlib.pyplot as plt
 import numpy as np
-def get_weighted_final_scores(final_scores_pivot,domain_usage_proportion,fillna=True,square_usage=False):
+def get_weighted_final_scores(final_scores_pivot,domain_usage_proportion,square_usage=False):
     # plt.figure()
     mult = domain_usage_proportion[final_scores_pivot.columns
         ]
     if square_usage:
         mult = mult**2
     weighted_final_scores = final_scores_pivot.mul(mult)
-    if fillna:
-        weighted_final_scores.fillna(0,inplace=True)
+
     # target_features = device_targets.set_index("Device_ID").join(weighted_final_scores)
     # target_features.set_index("Target")[[int(x) for x in best_features if x.isnumeric()]].stack().groupby("Target").mean().plot(kind="bar")
     # plt.show()

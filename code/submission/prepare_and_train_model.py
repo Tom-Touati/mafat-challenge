@@ -5,26 +5,40 @@ from sklearn.metrics import roc_auc_score
 
 
 def join_features(device_targets, weighted_final_scores=None, domain_usage_proportion=None, 
-                  cls_proportion=None, psd_df=None,domains_visited_proportion=None,mean_probability_score=None):
-    final_features = device_targets.set_index("Device_ID")
+                  cls_proportion=None, psd_df=None,domains_visited_proportion=None,mean_probability_score=None,max_domain_usage=None):
+    final_features = device_targets.set_index("Device_ID") if device_targets is not None else None
 
-    if weighted_final_scores is not None:
+    if weighted_final_scores is not None and final_features is not None:
         final_features = final_features.join(weighted_final_scores.rename(columns = lambda x: "p_"+str(x)), how="left")
+        print("weighted_final_scores")
+        print(weighted_final_scores.stack().describe())
+    else:
+        final_features = weighted_final_scores.rename(columns = lambda x: "p_"+str(x))
         
     if domain_usage_proportion is not None:  
         final_features = final_features.join(domain_usage_proportion.rename(columns = lambda x: "domain_usage_"+str(x)), how="left")
-        
+        print("domain_usage_proportion")
+        print(domain_usage_proportion.stack().describe())
     if cls_proportion is not None:
         final_features = final_features.join(cls_proportion.rename(columns = lambda x: "cls_proportion_"+str(x)), how="left")
-        
+        print("cls_proportion")
+        print(cls_proportion.stack().describe())
     if psd_df is not None:
         final_features = final_features.join(psd_df.rename(columns = lambda x: "activity_ps_"+str(x)), how="left")
-        
+        print("psd_df")
+        print(psd_df.stack().describe())
     if domains_visited_proportion is not None:
         final_features = final_features.join(domains_visited_proportion.rename(columns = lambda x: "domains_visited_"+str(x)), how="left")
-        
+        print("domains_visited_proportion")
+        print(domains_visited_proportion.stack().describe())
     if mean_probability_score is not None:
         final_features = final_features.join(mean_probability_score.rename(columns = lambda x: "mean_p_"+str(x)), how="left")
+        print("mean_probability_score")
+        print(mean_probability_score.stack().describe())
+    if max_domain_usage is not None:
+        final_features = final_features.join(max_domain_usage.rename(columns = lambda x: "max_domain_usage_"+str(x)), how="left")
+        print("max_domain_usage")
+        print(max_domain_usage.stack().describe())
     # final_features = final_features.join(device_domain_PCA,how="left")
     # if active_days is not None:
     #     final_features = final_features.join(active_days,how="left")
@@ -45,15 +59,15 @@ def prepare_model_data(final_features, train_devices, test_device_ids):
         test_device_ids)].drop('Target', axis=1)
     y_test = final_features[final_features.index.isin(
         test_device_ids)]['Target']
-    return X_train, y_train, X_test, y_test
+    return X_train, y_train, X_test[X_train.columns], y_test
 
 
 def train_model(X_train, y_train, X_test=None, y_test=None, params=None):
     deval = xgboost.DMatrix(X_test, y_test) if X_test is not None else None
 
-    xgb_reg = xgboost.XGBRegressor(**params, eval_metric=roc_auc_score)#,eval_set=[deval,"eval"],verbose_eval=True)
-    selector = RFE(xgb_reg, n_features_to_select=1000, step=20000)
-    selector = selector.fit(X_train, y_train)
+    xgb_reg = xgboost.XGBRegressor(**params["model"], eval_metric=roc_auc_score)#,early_stopping_rounds=25)
+    selector = RFE(xgb_reg, **params["feature_selection"], verbose=1)
+    selector = selector.fit(X_train, y_train)#, eval_set=[(X_train,y_train),(X_test, y_test)], verbose=1)
     best_features = list(X_train.columns[selector.support_])
     if X_test is not None:
         test_prediction = selector.estimator_.predict(X_test[best_features])

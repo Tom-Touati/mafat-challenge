@@ -1,6 +1,6 @@
 import modin.pandas as mpd
 from sklearn.preprocessing import MinMaxScaler,StandardScaler
-def z_normalize_by_all(df,train_devices,per_column = True,fillval=0,scaler=None):
+def z_normalize_by_all(df,train_devices,per_column = True,fillval=0,fill_na_pre_transform=True, scaler=None):
     if scaler is not None:
         df.iloc[:, :] = scaler.transform(
             df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
@@ -12,9 +12,11 @@ def z_normalize_by_all(df,train_devices,per_column = True,fillval=0,scaler=None)
     scaler.fit(train_data if per_column else train_data.values.reshape(-1, 1))
 
     # Transform all data using fitted scaler
+    if fill_na_pre_transform:
+        df.fillna(fillval,inplace=True)
     df.iloc[:, :] = scaler.transform(
         df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
-    if fillval:
+    if fillval is not None:
         df.fillna(fillval,inplace=True)
     params = {
         "mean_": float(scaler.mean_[0]),  # Convert to native Python float

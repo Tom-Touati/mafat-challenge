@@ -4,5 +4,5 @@ def get_cls_proportion(df):
     df = df.set_index("Device_ID")[cols].stack()
     df = df[df!=0]
     df.index = df.index.droplevel(1)
-    df = df.groupby("Device_ID").value_counts(normalize=True).unstack(fill_value=0).astype(np.float32)
+    df = df.groupby("Device_ID").value_counts(normalize=True).unstack().astype(np.float32)
     return df

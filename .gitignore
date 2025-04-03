@@ -1,3 +1,4 @@
 train_data_for_competition/mini_training_set.db
 train_data_for_competition/training_set.db
 .neptune/
+*.parquet

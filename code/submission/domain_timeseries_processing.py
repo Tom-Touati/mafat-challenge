@@ -80,7 +80,6 @@ def get_user_activity_timeseries(db_df, user_ts_kwargs):
     process_user_timeseries.__name__ = process_activity_timeseries.__name__
     user_timeseries = db_df[["Domain_Name", "Device_ID"]].groupby(
         ["Domain_Name", "Device_ID"]).apply(process_user_timeseries)
-    # user_timeseries.index = mpd.MultiIndex.from_tuples(user_timeseries.index.to_list(),names=["Domain_Name","Device_ID","Datetime"])
     return user_timeseries
 
 
@@ -88,13 +87,12 @@ def get_user_domain_scores(domain_activity_timeseries, user_activity_timeseries)
     # Merge domain and user timeseries data more efficiently
     merged_timeseries_df = domain_activity_timeseries[["p_1|active", "bin_activity"]].reset_index().merge(
         user_activity_timeseries.reset_index(),
-        how="inner",
+        how="left",
         on=["Domain_Name", "Datetime"]
     ).set_index(["Datetime", "Domain_Name", "Device_ID"])
 
     # Filter for active periods first to reduce data size
-    merged_timeseries_df = merged_timeseries_df[merged_timeseries_df["Activity"] > 0]._repartition(
-    )
+    merged_timeseries_df = merged_timeseries_df[merged_timeseries_df["Activity"] > 0]
 
     # Calculate scores directly
     # Calculate relative activity using transform for vectorized operation

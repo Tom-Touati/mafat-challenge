@@ -1,5 +1,4 @@
 import numpy as np
-import modin.pandas as mpd
 from sklearn.decomposition import PCA
 
 def get_active_days_per_user(user_domain_ts):
@@ -44,33 +43,12 @@ def get_activity_per_time_bin(df, bin_hours=3):
     activity_per_time_range = (activity_per_time_range-activity_per_time_range.stack().min())/(activity_per_time_range.stack().max()-activity_per_time_range.stack().min())*2-1
     activity_per_time_range = activity_per_time_range.fillna(0)
     return activity_per_time_range  # .round().astype(int)
-def get_device_domain_pca(user_activity_timeseries, n_components=100):
-    # Calculate total entries per domain for each device
-    domain_entries = user_activity_timeseries.reset_index()[['Device_ID', 'Domain_Name','Activity']].groupby(['Device_ID', 'Domain_Name'])['Activity'].sum()
-    domain_entries_pivot = domain_entries.unstack(fill_value=0)
-    # domain_entries_pivot = domain_entries_pivot/domain_entries_pivot.sum(axis=1)
-    # Normalize the data
-    # normalized_data = (domain_entries_pivot - domain_entries_pivot.min().min()) / (domain_entries_pivot.max().max() - domain_entries_pivot.min().min())
-    
-    # Apply PCA
-    pca = PCA(n_components=n_components)
-    pca_result = pca.fit_transform(domain_entries_pivot.fillna(0))
-    # Print explained variance ratio
-    explained_variance = pca.explained_variance_ratio_
-    print(f"Explained variance ratio: {explained_variance.sum():.3f}")
-    # Create DataFrame with PCA results
-    pca_df = mpd.DataFrame(
-        pca_result,
-        index=domain_entries_pivot.index,
-        columns=[f'pca_domain_{i}' for i in range(n_components)]
-    )
-    
-    return pca_df
+
 #activity fft
 from scipy import fft
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-def get_ps_df(db_df):
+def get_ps_df(db_df,pd):
     device_activity_ts = db_df.groupby("Device_ID")["Domain_Name"].resample("3H").count()
     device_activity_ts = device_activity_ts.unstack().fillna(0)
     # device_activity_ts = StandardScaler().fit_transform(device_activity_ts.T)
@@ -83,7 +61,7 @@ def get_ps_df(db_df):
     power_spectrums = power_spectrums[:,freq_mask]
     freqs = freqs[freq_mask]
 
-    psd_df = mpd.DataFrame(power_spectrums,index=device_activity_ts.index,columns=freqs)
+    psd_df = pd.DataFrame(power_spectrums,index=device_activity_ts.index,columns=freqs)
     # Get power spectra for training devices only
 
     

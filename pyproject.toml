@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "mafat-challenge"
+name = "code"
 version = "0.1.0"
 description = ""
 authors = ["tomtou-bspace <tom.touati@brain.space>"]

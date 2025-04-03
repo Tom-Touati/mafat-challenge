@@ -5,13 +5,20 @@ from datetime import datetime, timedelta
 from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import json
-from domain_timeseries_processing import *
-from utils import *
-from load_and_prepare_input import *
-from prepare_and_train_model import *
-from content_based_features import *
-from frequency_base_feats import *
-from cls_features import *
+from submission.prepare_and_train_model import *
+from submission.utils import *
+from submission.domain_timeseries_processing import *
+from submission.content_based_features import *
+from submission.frequency_base_feats import *
+from submission.cls_features import *
+from submission.load_and_prepare_input import *
+# from domain_timeseries_processing import *
+# from utils import *
+# from load_and_prepare_input import *
+# from prepare_and_train_model import *
+# from content_based_features import *
+# from frequency_base_feats import *
+# from cls_features import *
 
 PARAMS = {
     'seed': 0,
@@ -54,7 +61,7 @@ PARAMS = {
 
 class model:
 
-    def __init__(self, params=PARAMS):
+    def __init__(self, params=PARAMS, engine=pd):
         '''
         Init the model
         '''
@@ -69,7 +76,7 @@ class model:
         self.psd_df_scaler = StandardScaler()
         self.mean_scores_scaler = StandardScaler()
         self.params = params
-        self.engine = pd
+        self.engine = engine
 
     def get_probability_score(self, x_valid_domains):
         user_activity_timeseries = get_user_activity_timeseries(
@@ -106,7 +113,7 @@ class model:
                            train_devices=None,
                            per_column=True,
                            scaler=self.max_domain_scaler)
-        
+
         domain_usage_proportion = np.log(1 + domain_usage_proportion)
         domain_usage_proportion = ((domain_usage_proportion.T) /
                                    domain_usage_proportion.T.max()).T
@@ -117,7 +124,7 @@ class model:
         return domain_usage_proportion, max_domain_usage
 
     def get_frequency_based_features(self, x, valid_x):
-        psd_df = get_ps_df(x, self.engine)
+        psd_df = get_ps_df(x, self.engine, ntimebins=168)
         z_normalize_by_all(psd_df,
                            train_devices=None,
                            per_column=True,
@@ -145,8 +152,8 @@ class model:
                            scaler=self.weighted_score_scaler)
 
         # add mean and std of weighted_final_scores
-        return weighted_final_scores, weighted_final_scores.T.mean(
-        ).to_frame(), weighted_final_scores.T.std().to_frame()
+        return weighted_final_scores, weighted_final_scores.T.mean().to_frame(
+        ), weighted_final_scores.T.std().to_frame()
 
     def load_standard_scaler(self, scaler_path):
         '''
@@ -198,7 +205,7 @@ class model:
         ]
         domain_activity_path = os.path.join(dir_path,
                                             'best_domains_timeseries.parquet')
-        self.domain_activity = pd.read_parquet(domain_activity_path)
+        self.domain_activity = self.engine.read_parquet(domain_activity_path)
         # self.load_minmax_scaler(os.path.join(dir_path, 'minmax_scaler.json'))
         scalers = [
             "max_domain_scaler", "psd_df_scaler", "domains_visited_scaler",

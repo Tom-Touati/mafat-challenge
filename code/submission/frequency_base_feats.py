@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.decomposition import PCA
 
+
 def get_active_days_per_user(user_domain_ts):
     """
     Calculate the number of unique days each user had any activity.
@@ -22,8 +23,8 @@ def get_active_days_per_user(user_domain_ts):
 
     active_days = active_days.astype(int)
     active_days.name = "Active_Days"
-    active_days = (active_days-active_days.min()
-                   ) / (active_days.max()-active_days.min())*2-1
+    active_days = (active_days - active_days.min()) / (
+        active_days.max() - active_days.min()) * 2 - 1
     return active_days
 
 
@@ -32,40 +33,64 @@ def get_activity_per_time_bin(df, bin_hours=3):
     # time_index = db_df.index.to_series().dt.time
     # df["time"] = time_index
     df_copy = df.copy()
-    df_copy["time"] = db_df.index.to_series().dt.hour.astype(int)//bin_hours
+    df_copy["time"] = db_df.index.to_series().dt.hour.astype(int) // bin_hours
     df_copy["day_part_activity"] = 0
-    activity_per_time_range = df_copy[["Device_ID", "time", "day_part_activity"]].groupby(
-        ["Device_ID", "time"]).count()
-    activity_per_time_range["activity_fraction"] = activity_per_time_range.groupby("Device_ID").apply(lambda x: x/x.sum()).values
-    activity_per_time_range = activity_per_time_range[["activity_fraction"]].reset_index()
-    activity_per_time_range = activity_per_time_range.pivot(index="Device_ID",columns="time",values="activity_fraction")
-    activity_per_time_range.columns = [f"time_{col}" for col in activity_per_time_range.columns]
-    activity_per_time_range = (activity_per_time_range-activity_per_time_range.stack().min())/(activity_per_time_range.stack().max()-activity_per_time_range.stack().min())*2-1
+    activity_per_time_range = df_copy[[
+        "Device_ID", "time", "day_part_activity"
+    ]].groupby(["Device_ID", "time"]).count()
+    activity_per_time_range[
+        "activity_fraction"] = activity_per_time_range.groupby(
+            "Device_ID").apply(lambda x: x / x.sum()).values
+    activity_per_time_range = activity_per_time_range[["activity_fraction"
+                                                       ]].reset_index()
+    activity_per_time_range = activity_per_time_range.pivot(
+        index="Device_ID", columns="time", values="activity_fraction")
+    activity_per_time_range.columns = [
+        f"time_{col}" for col in activity_per_time_range.columns
+    ]
+    activity_per_time_range = (
+        activity_per_time_range - activity_per_time_range.stack().min()) / (
+            activity_per_time_range.stack().max() -
+            activity_per_time_range.stack().min()) * 2 - 1
     activity_per_time_range = activity_per_time_range.fillna(0)
     return activity_per_time_range  # .round().astype(int)
+
 
 #activity fft
 from scipy import fft
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-def get_ps_df(db_df,pd):
-    device_activity_ts = db_df.groupby("Device_ID")["Domain_Name"].resample("3H").count()
+
+
+def get_ps_df(db_df, pd,ntimebins=135):
+    device_activity_ts = db_df.groupby("Device_ID")["Domain_Name"].resample(
+        "3H").count()
     device_activity_ts = device_activity_ts.unstack().fillna(0)
+    if device_activity_ts.shape[1] < ntimebins:
+        device_activity_ts = device_activity_ts.reindex(
+            columns=range(ntimebins), fill_value=0)
+    print(device_activity_ts.shape)
+    # Apply Hann window to the data before FFT
+    window = np.hanning(device_activity_ts.shape[1])
+    device_activity_ts = device_activity_ts * window
     # device_activity_ts = StandardScaler().fit_transform(device_activity_ts.T)
-    power_spectrums = np.abs(fft.rfft(device_activity_ts,axis=1))**2
-    
-    sample_d = 3*60*60
-    
-    freqs = fft.rfftfreq(device_activity_ts.shape[1],d=sample_d)
-    freq_mask = freqs>=0
-    power_spectrums = power_spectrums[:,freq_mask]
+    power_spectrums = np.abs(fft.rfft(device_activity_ts, axis=1))**2
+
+    sample_d = 3 * 60 * 60
+
+    freqs = fft.rfftfreq(device_activity_ts.shape[1], d=sample_d)
+    freq_mask = freqs >= 0
+    power_spectrums = power_spectrums[:, freq_mask]
     freqs = freqs[freq_mask]
 
-    psd_df = pd.DataFrame(power_spectrums,index=device_activity_ts.index,columns=freqs)
+    psd_df = pd.DataFrame(power_spectrums,
+                          index=device_activity_ts.index,
+                          columns=freqs)
     # Get power spectra for training devices only
 
-    
     return psd_df
+
+
 # Convert to dataframe and normalize
 # power_spectrums_df = power_spectrums.to_frame('power_spectrum')
 # power_spectrums_df = (power_spectrums_df - power_spectrums_df.min()) / (power_spectrums_df.max() - power_spectrums_df.min())

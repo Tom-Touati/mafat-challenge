@@ -1,110 +1,185 @@
-
 import xgboost
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from sklearn.metrics import roc_auc_score
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import json
+from domain_timeseries_processing import *
+from utils import *
+from load_and_prepare_input import *
+from prepare_and_train_model import *
+from content_based_features import *
+from frequency_base_feats import *
+from cls_features import *
+
+PARAMS = {
+    'seed': 0,
+    'subsample': 0.8,
+    'colsample_bytree': 0.6,
+    'learning_rate': 0.1,
+    'max_depth': 3,
+    'objective': 'binary:logistic',
+    'eval_metric': 'auc',
+    'weighted_final_scores': {},
+    'mean_probability_score': {
+        'fillna': True,
+        'square_usage': True,
+        'norm': 'z'
+    },
+    'feature_selection': {
+        'n_features_to_select': 2000,
+        'step': 20000
+    },
+    'model': {
+        'seed': 0,
+        'subsample': 0.8,
+        'colsample_bytree': 0.6,
+        'learning_rate': 0.1,
+        'n_estimators': 250,
+        'max_depth': 4,
+        'objective': 'binary:logistic'
+    },
+    'no-normalization-finalscores': True,
+    "user_activity_timeseries": {
+        "bin_hours": 6,
+        "gaussian_filter": True,
+        "n_days_each_side": 3,
+        "std": 1.5,
+        "drop_na": True,
+        "drop_zeros": False
+    }
+}
+
+
 class model:
-    def __init__(self,with_neptune=False):
+
+    def __init__(self, params=PARAMS):
         '''
         Init the model
         '''
-        self.model = xgboost.XGBRegressor(
-            seed=0, 
-            subsample=0.8, 
-            colsample_bytree=0.8, 
-            learning_rate=0.1,
-            n_estimators=150, 
-            max_depth=6, 
-            objective='binary:logistic',
-            eval_metric=roc_auc_score
-        )
+        self.model = xgboost.XGBRegressor()
         self.domain_activity = None
         self.user_activity = None
         self.best_features = None
-        self.score_scaler = MinMaxScaler(feature_range=(-1,1))
-    def get_cls_proportion(self,df):
-        cols=["Domain_cls1","Domain_cls2","Domain_cls3","Domain_cls4"]
-        df = df[cols]
-        df = df.stack()
-        df = df[df!=0]
-        df = df.value_counts(normalize=True).T.fillna(0)
-        df = df.to_frame().T
-        df.columns = [f"cls_{col}" for col in df.columns]
-        missing_cols = [x for x in self.best_features if x not in df.columns and x.startswith("cls_")]
-        if len(missing_cols)>0:
-            df[missing_cols] = np.zeros((df.shape[0], len(missing_cols)))
-        return df
-    def process_activity_timeseries(self,domain_df,bin_hours=6,gaussian_filter=True,n_days_each_side=3,std=1.5,drop_na=True,drop_zeros=False):
-        activity_per_3h = domain_df[["Device_ID"]].resample(f'{str(bin_hours)}h').nunique()
-        activity_per_3h.rename(columns={"Device_ID":"Activity"},inplace=True)
-        # activity_per_3h = activity_per_3h.to_frame()
+        self.weighted_score_scaler = StandardScaler()
+        self.max_domain_scaler = StandardScaler()
+        self.cls_proportion_scaler = StandardScaler()
+        self.domains_visited_scaler = StandardScaler()
+        self.psd_df_scaler = StandardScaler()
+        self.mean_scores_scaler = StandardScaler()
+        self.params = params
+        self.engine = pd
 
-        gaussian_window_hours = int(n_days_each_side*24/bin_hours*2) # n_days_each_side * 24h / 3h_per_bin * 2 sides
-        if gaussian_filter:
-            activity_per_3h = activity_per_3h.rolling(window=gaussian_window_hours, win_type='gaussian',center=True,min_periods=1,closed="both").mean(std=std)
-        if drop_na:
-            activity_per_3h.dropna(inplace=True)
-        if drop_zeros:
-            activity_per_3h = activity_per_3h[activity_per_3h["Activity"]!=0]
-        return activity_per_3h.round().astype(int)
+    def get_probability_score(self, x_valid_domains):
+        user_activity_timeseries = get_user_activity_timeseries(
+            x_valid_domains, self.params["user_activity_timeseries"])
 
-    def class_probability_score(self,active, p_active_given_a, p_active_given_b, prior_a=0.5, total_users=100):
-        """
-        Calculate class probability score with vectorized operations
+        p_scores_df = get_user_domain_scores(self.domain_activity,
+                                             user_activity_timeseries)
+
+        p_scores_df -= 0.5
+        for col in self.valid_domains:
+            if col not in p_scores_df.columns:
+                p_scores_df[col] = np.nan
+        p_scores_df = p_scores_df[self.valid_domains]
+        # min_max_scale_all_values(p_scores_df, train_devices, self.score_scaler)
+        return p_scores_df
+
+    def get_cls_features(self, cls_data):
+        cls_proportion = get_cls_proportion(cls_data)
+        for col in self.cls_columns:
+            if col not in cls_proportion.columns:
+                cls_proportion[col] = np.nan
+        cls_proportion = cls_proportion[self.cls_columns]
+        z_normalize_by_all(cls_proportion,
+                           train_devices=None,
+                           per_column=True,
+                           fill_na_pre_transform=True,
+                           scaler=self.cls_proportion_scaler)
+        return cls_proportion
+
+    def get_content_based_features(self, x_valid_domains):
+        domain_usage_proportion = get_domain_usage_proportion(x_valid_domains)
+        max_domain_usage = domain_usage_proportion.max(axis=1).to_frame()
+        z_normalize_by_all(df=max_domain_usage,
+                           train_devices=None,
+                           per_column=True,
+                           scaler=self.max_domain_scaler)
         
-        Args:
-            active: Boolean indicating if user was active
-            p_active_given_a: Probability of activity given class A (0)
-            p_active_given_b: Probability of activity given class B (1)
-            prior_a: Prior probability for class A
-            total_users: Total number of users for confidence calculation
-        """
-        # Use numpy for vectorized operations
-        likelihood_a = np.where(active, p_active_given_a, 1 - p_active_given_a)
-        likelihood_b = np.where(active, p_active_given_b, 1 - p_active_given_b)
-        
-        # Avoid division by zero
-        evidence = (likelihood_a * prior_a + likelihood_b * (1 - prior_a))
-        posterior_a = (likelihood_a * prior_a) / evidence
+        domain_usage_proportion = np.log(1 + domain_usage_proportion)
+        domain_usage_proportion = ((domain_usage_proportion.T) /
+                                   domain_usage_proportion.T.max()).T
+        for col in self.valid_domains:
+            if col not in domain_usage_proportion.columns:
+                domain_usage_proportion[col] = np.nan
+        domain_usage_proportion = domain_usage_proportion[self.valid_domains]
+        return domain_usage_proportion, max_domain_usage
 
-        return posterior_a #* confidence_factor
+    def get_frequency_based_features(self, x, valid_x):
+        psd_df = get_ps_df(x, self.engine)
+        z_normalize_by_all(psd_df,
+                           train_devices=None,
+                           per_column=True,
+                           scaler=self.psd_df_scaler)
+        domains_visited_proportion = get_proportion_of_domains_visited(valid_x)
+        for col in self.domains_visited_cols:
+            if col not in domains_visited_proportion.columns:
+                domains_visited_proportion[col] = np.nan
+        domains_visited_proportion = domains_visited_proportion[
+            self.domains_visited_cols]
+        z_normalize_by_all(domains_visited_proportion,
+                           train_devices=None,
+                           per_column=True,
+                           fillval=0,
+                           scaler=self.domains_visited_scaler)
+        return psd_df, domains_visited_proportion
 
+    def get_mixed_features(self, p_scores_df, domain_usage_proportion):
+        weighted_final_scores = get_weighted_final_scores(
+            p_scores_df, domain_usage_proportion)
+        z_normalize_by_all(weighted_final_scores,
+                           train_devices=None,
+                           per_column=False,
+                           fill_na_pre_transform=False,
+                           scaler=self.weighted_score_scaler)
 
-    def get_user_domain_scores(self,user_activity_timeseries,domain_activity_timeseries):
-        merged_timeseries_df = domain_activity_timeseries.reset_index().merge(
-            user_activity_timeseries.reset_index(), how="inner", on=["Domain_Name", "Datetime"]
-        ).set_index(["Datetime", "Domain_Name", "Device_ID"])
+        # add mean and std of weighted_final_scores
+        return weighted_final_scores, weighted_final_scores.T.mean(
+        ).to_frame(), weighted_final_scores.T.std().to_frame()
 
-        merged_timeseries_df["bin_activity"] = merged_timeseries_df["Activity_0"]+merged_timeseries_df["Activity_1"]
-        merged_timeseries_df["total_activity"] = (merged_timeseries_df["target_domain_activity_0"]+merged_timeseries_df["target_domain_activity_1"])
-        merged_timeseries_df["relative_0_activity"] = merged_timeseries_df["target_domain_activity_0"]/merged_timeseries_df["total_activity"]
-        merged_timeseries_df["score"]=self.class_probability_score(merged_timeseries_df["Activity"], merged_timeseries_df["activity_fraction_0"], merged_timeseries_df["activity_fraction_1"], 
-                                                                   prior_a=merged_timeseries_df["relative_0_activity"], total_users=merged_timeseries_df["bin_activity"])
-        merged_timeseries_df["relative_bin_activity"] = merged_timeseries_df["bin_activity"]/merged_timeseries_df["total_activity"]
-        merged_timeseries_df["weighted_score"] = (merged_timeseries_df["score"])*(merged_timeseries_df["bin_activity"])
-        final_scores = merged_timeseries_df.groupby(["Device_ID","Domain_Name"])["weighted_score"].mean()
-        final_scores_pivot = final_scores.to_frame().reset_index().pivot(index="Device_ID",columns="Domain_Name").fillna(0)
-        final_scores_pivot = final_scores_pivot.droplevel(0, axis=1)
-        final_scores_pivot.columns = [str(col) for col in final_scores_pivot.columns]
-        missing_columns = [x for x in self.best_domains if x not in final_scores_pivot.columns]
-        final_scores_pivot[missing_columns] = np.zeros((final_scores_pivot.shape[0], len(missing_columns)))
-        final_scores_pivot = final_scores_pivot[self.best_domains]
-        return final_scores_pivot
-    def load_minmax_scaler(self,scaler_path):
+    def load_standard_scaler(self, scaler_path):
+        '''
+        Load the StandardScaler from the given path
+        '''
+        with open(scaler_path, 'r') as f:
+            loaded_params = json.load(f)
+        scaler = StandardScaler()
+        scaler.mean_ = np.array([loaded_params["mean_"]], dtype=np.float64)
+        scaler.var_ = np.array([loaded_params["var_"]], dtype=np.float64)
+        scaler.scale_ = np.array([loaded_params["scale_"]], dtype=np.float64)
+        scaler.n_samples_seen_ = np.array([loaded_params["n_samples_seen_"]],
+                                          dtype=np.int64)
+        return scaler
+
+    def load_minmax_scaler(self, scaler_path):
         '''
         Load the MinMaxScaler from the given path
         '''
         with open(scaler_path, 'r') as f:
             loaded_params = json.load(f)
-        self.score_scaler.min_ = np.array([loaded_params["min_"]], dtype=np.float64)
-        self.score_scaler.scale_ = np.array([loaded_params["scale_"]], dtype=np.float64)
-        self.score_scaler.data_min_ = np.array([loaded_params["data_min_"]], dtype=np.float64)
-        self.score_scaler.data_max_ = np.array([loaded_params["data_max_"]], dtype=np.float64)
-        self.score_scaler.data_range_ = np.array([loaded_params["data_range_"]], dtype=np.float64)
-        self.score_scaler.feature_range = tuple(loaded_params["feature_range"])
+        scaler = MinMaxScaler()
+        scaler.min_ = np.array([loaded_params["min_"]], dtype=np.float64)
+        scaler.scale_ = np.array([loaded_params["scale_"]], dtype=np.float64)
+        scaler.data_min_ = np.array([loaded_params["data_min_"]],
+                                    dtype=np.float64)
+        scaler.data_max_ = np.array([loaded_params["data_max_"]],
+                                    dtype=np.float64)
+        scaler.data_range_ = np.array([loaded_params["data_range_"]],
+                                      dtype=np.float64)
+        scaler.feature_range = tuple(loaded_params["feature_range"])
+        return scaler
+
     def load(self, dir_path):
         '''
         Load the trained model and domain activity data
@@ -117,38 +192,70 @@ class model:
         best_features_path = os.path.join(dir_path, 'best_features.json')
         with open(best_features_path, "r") as fp:
             self.best_features = json.load(fp)
-        self.best_domains = [x for x in self.best_features if x.isnumeric()]
-        domain_activity_path = os.path.join(dir_path, 'best_domain_activity.parquet')
+        self.best_domains = [
+            int(x.replace("p_", "")) for x in self.best_features
+            if x.startswith("p_") and "mean" not in x
+        ]
+        domain_activity_path = os.path.join(dir_path,
+                                            'best_domains_timeseries.parquet')
         self.domain_activity = pd.read_parquet(domain_activity_path)
-        self.load_minmax_scaler(os.path.join(dir_path,'minmax_scaler.json'))
+        # self.load_minmax_scaler(os.path.join(dir_path, 'minmax_scaler.json'))
+        scalers = [
+            "max_domain_scaler", "psd_df_scaler", "domains_visited_scaler",
+            "cls_proportion_scaler", "weighted_score_scaler",
+            "mean_scores_scaler"
+        ]
+        for s in scalers:
+            setattr(
+                self, s,
+                self.load_standard_scaler(os.path.join(dir_path, f'{s}.json')))
+        with open(os.path.join(dir_path, 'cls_columns.json'), 'r') as f:
+            self.cls_columns = json.load(f)
+
+        with open(os.path.join(dir_path, 'valid_domains.json'), 'r') as f:
+            self.valid_domains = [int(x) for x in json.load(f)]
+        with open(
+                os.path.join(dir_path,
+                             'domains_visited_proportions_cols.json'),
+                'r') as f:
+            self.domains_visited_cols = json.load(f)
+
+    def prepare_data(self, X):
+        X = X.copy()
+
+        if X['Datetime'].dtype == 'O':
+            X['Datetime'] = self.engine.to_datetime(X['Datetime'])
+        if "Device_ID" not in X.columns:
+            X["Device_ID"] = 1
+        X.set_index(['Datetime'], inplace=True)
+        x_valid_domains = X[X['Domain_Name'].isin(self.valid_domains)]
+        return X, x_valid_domains
+
     def predict(self, X):
         '''
         Predict the class probability for the input data
         '''
         # Process user timeseries
-        X = X.copy()
-        
-        if X['Datetime'].dtype == 'O':
-            X['Datetime'] = pd.to_datetime(X['Datetime'])
-        if "Device_ID" not in X.columns:
-            X["Device_ID"] = 1
-        X.set_index(['Datetime'], inplace=True)
-        x_domains = X[X['Domain_Name'].isin([int(x) for x in self.best_domains])]
-        user_timeseries = x_domains[['Device_ID', 'Domain_Name']].groupby(["Device_ID","Domain_Name"]).apply(lambda x :self.process_activity_timeseries(
-            x,
-            bin_hours=6,
-            gaussian_filter=True,
-            n_days_each_side=3,
-            std=1.5,
-            drop_na=True,
-            drop_zeros=False
-        ))
-        
-        # Get domain scores
-        final_scores = self.get_user_domain_scores(user_timeseries, self.domain_activity)
-        final_scores.iloc[:] = self.score_scaler.transform(final_scores.values.reshape(-1,1)).reshape(final_scores.shape)
-        cls_proportion = self.get_cls_proportion(X)
-        final_features = pd.concat([final_scores.reset_index(),cls_proportion.reset_index()],axis=1)[self.best_features]
+        X, x_valid_domains = self.prepare_data(X)
+        p_scores_df = self.get_probability_score(x_valid_domains)
+        domain_usage_proportion, max_domain_usage = self.get_content_based_features(
+            x_valid_domains)
+        cls_proportion = self.get_cls_features(X)
+        psd_df, domains_visited_proportion = self.get_frequency_based_features(
+            X, valid_x=x_valid_domains)
+        weighted_final_scores, mean_probability_score, std_probability_score = self.get_mixed_features(
+            p_scores_df, domain_usage_proportion)
+        final_features = join_features(
+            device_targets=None,
+            weighted_final_scores=weighted_final_scores,
+            cls_proportion=cls_proportion,
+            psd_df=psd_df,
+            domains_visited_proportion=domains_visited_proportion,
+            mean_probability_score=mean_probability_score,
+            max_domain_usage=max_domain_usage)
+        final_features = final_features[self.best_features]
+        # add feature that is number of zeros in final_features
+
         # Make prediction
         prediction = self.model.predict(final_features)
         return prediction[0]

@@ -1,14 +1,21 @@
 import numpy as np
 import modin.pandas as mpd
-from sklearn.preprocessing import MinMaxScaler,StandardScaler
-def z_normalize_by_all(df,train_devices,per_column = True,fillval=0,fill_na_pre_transform=False, scaler=None):
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+
+
+def z_normalize_by_all(df,
+                       train_devices,
+                       per_column=True,
+                       fillval=0,
+                       fill_na_pre_transform=False,
+                       scaler=None):
     if scaler is not None:
         if fill_na_pre_transform:
-            df.fillna(fillval,inplace=True)
+            df.fillna(fillval, inplace=True)
         df.iloc[:, :] = scaler.transform(
             df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
         if fillval:
-            df.fillna(fillval,inplace=True)
+            df.fillna(fillval, inplace=True)
         return
     scaler = StandardScaler()
     train_data = df.loc[train_devices]
@@ -16,19 +23,25 @@ def z_normalize_by_all(df,train_devices,per_column = True,fillval=0,fill_na_pre_
 
     # Transform all data using fitted scaler
     if fill_na_pre_transform:
-        df.fillna(fillval,inplace=True)
+        df.fillna(fillval, inplace=True)
     df.iloc[:, :] = scaler.transform(
         df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
     if fillval is not None:
-        df.fillna(fillval,inplace=True)
+        df.fillna(fillval, inplace=True)
     params = {
-            "mean_": [float(x) for x in scaler.mean_],  # Convert to list for JSON serialization
-            "var_": [float(x) for x in scaler.var_],
-            "scale_": [float(x) for x in scaler.scale_],
-            "n_samples_seen_": [int(x) for x in scaler.n_samples_seen_] if isinstance(scaler.n_samples_seen_, np.ndarray) else int(scaler.n_samples_seen_),
-        }
+        "mean_":
+        [float(x)
+         for x in scaler.mean_],  # Convert to list for JSON serialization
+        "var_": [float(x) for x in scaler.var_],
+        "scale_": [float(x) for x in scaler.scale_],
+        "n_samples_seen_": [int(x) for x in scaler.n_samples_seen_]
+        if isinstance(scaler.n_samples_seen_, np.ndarray) else int(
+            scaler.n_samples_seen_),
+    }
     return params
-def min_max_scale_all_values(df, train_devices, per_column=False,scaler=None):
+
+
+def min_max_scale_all_values(df, train_devices, per_column=False, scaler=None):
     if scaler is not None:
         df.iloc[:, :] = scaler.transform(
             df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
@@ -54,11 +67,14 @@ def min_max_scale_all_values(df, train_devices, per_column=False,scaler=None):
     }
     return scaler_params
 
-from sklearn.impute import KNNImputer# , IterativeImputer
+
+from sklearn.impute import KNNImputer  # , IterativeImputer
 from sklearn.linear_model import BayesianRidge
 from scipy.sparse import csr_matrix
+
+
 # from implicit.cpu.als import AlternatingLeastSquares
-def impute_missing_values(final_scores_pivot,train_device_ids):
+def impute_missing_values(final_scores_pivot, train_device_ids):
     # Use SoftImpute to fill missing values
     imputer = KNNImputer(n_neighbors=10)
     imputer.fit(final_scores_pivot.loc[train_device_ids])
@@ -66,12 +82,15 @@ def impute_missing_values(final_scores_pivot,train_device_ids):
     # imputer = AlternatingLeastSquares(factors=10, regularization=0.01, iterations=10,random_state=0)
     # # imputer = MissForest(max_depth=6,max_features=0.8, random_state=0)
     # imputer.fit( user_items = csr_matrix(final_scores_pivot.loc[train_device_ids].values))
-    
+
     # imputed_scores = imputer.recommend_all(csr_matrix(final_scores_pivot.values))
     return imputed_scores
+
+
 import gc
 import ctypes
 import sys
+
 
 def cleanup_memory():
     """
@@ -81,7 +100,7 @@ def cleanup_memory():
     """
     # Force garbage collection
     gc.collect()
-    
+
     # Attempt to release memory back to the OS
     if sys.platform.startswith('linux'):
         libc = ctypes.CDLL('libc.so.6')

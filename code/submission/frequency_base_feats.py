@@ -62,14 +62,12 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 
-def get_ps_df(db_df, pd,ntimebins=135):
+def get_ps_df(db_df, pd,cols=None):
     device_activity_ts = db_df.groupby("Device_ID")["Domain_Name"].resample(
         "3H").count()
     device_activity_ts = device_activity_ts.unstack().fillna(0)
-    if device_activity_ts.shape[1] < ntimebins:
-        device_activity_ts = device_activity_ts.reindex(
-            columns=range(ntimebins), fill_value=0)
-    print(device_activity_ts.shape)
+    if cols is not None:
+        device_activity_ts = device_activity_ts.reindex(cols,axis="columns").fillna(0)
     # Apply Hann window to the data before FFT
     window = np.hanning(device_activity_ts.shape[1])
     device_activity_ts = device_activity_ts * window

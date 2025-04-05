@@ -111,7 +111,7 @@ def get_user_domain_scores(domain_activity_timeseries,
     merged_timeseries_df = domain_activity_timeseries[[
         "p_1|active", "bin_activity"
     ]].reset_index().merge(user_activity_timeseries.reset_index(),
-                           how="left",
+                           how="inner",
                            on=["Domain_Name", "Datetime"]).set_index(
                                ["Datetime", "Domain_Name", "Device_ID"])
 

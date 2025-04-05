@@ -14,7 +14,7 @@ def z_normalize_by_all(df,
             df.fillna(fillval, inplace=True)
         df.iloc[:, :] = scaler.transform(
             df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
-        if fillval:
+        if fillval is not None:
             df.fillna(fillval, inplace=True)
         return
     scaler = StandardScaler()
@@ -28,6 +28,7 @@ def z_normalize_by_all(df,
         df if per_column else df.values.reshape(-1, 1)).reshape(df.shape)
     if fillval is not None:
         df.fillna(fillval, inplace=True)
+        
     params = {
         "mean_":
         [float(x)

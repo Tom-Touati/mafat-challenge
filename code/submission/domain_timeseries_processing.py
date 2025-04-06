@@ -56,18 +56,18 @@ def _calculate_p1_if_active(domain_activity_timeseries):
     pass
 
 
-def get_domain_activity_timeseries(train_df, domain_ts_kwargs):
+def get_domain_activity_timeseries(train_df, domain_ts_kwargs,col="Domain"):
     process_domain_timeseries = partial(process_activity_timeseries,
                                         **domain_ts_kwargs)
     process_domain_timeseries.__name__ = process_activity_timeseries.__name__
-    domain_timeseries = train_df[["Domain_Name", "Target",
+    domain_timeseries = train_df[[col, "Target",
                                   "Device_ID"]].groupby([
-                                      "Domain_Name", "Target"
+                                      col, "Target"
                                   ]).apply(process_domain_timeseries)
     domain_timeseries["activity_fraction"] = domain_timeseries.groupby(
-        ["Domain_Name", "Target"]).transform(lambda x: x / x.sum())
+        [col, "Target"]).transform(lambda x: x / x.sum())
     # Add the sum of activity as a new column
-    domain_activity = domain_timeseries.groupby(["Domain_Name", "Target"
+    domain_activity = domain_timeseries.groupby([col, "Target"
                                                  ])[["Activity"]].sum()
     domain_activity = domain_activity.rename(
         columns={"Activity": "target_domain_activity"})
@@ -77,12 +77,12 @@ def get_domain_activity_timeseries(train_df, domain_ts_kwargs):
                                                 right_index=True)
     # Reset index to get Target as a column, then pivot to get Target as columns
     pivot_fraction_ts = domain_timeseries.reset_index().pivot(
-        index=['Datetime', 'Domain_Name'], columns='Target').fillna(0)
+        index=['Datetime', col], columns='Target').fillna(0)
     pivot_fraction_ts.columns = [
         f'{col[0]}_{col[1]}' for col in pivot_fraction_ts.columns
     ]
     target_users_per_domain = train_df.groupby([
-        "Domain_Name", "Target"
+        col, "Target"
     ])["Device_ID"].nunique().unstack().fillna(0).astype(int).rename(
         columns={
             0: "0_users",
@@ -95,25 +95,25 @@ def get_domain_activity_timeseries(train_df, domain_ts_kwargs):
     return pivot_fraction_ts
 
 
-def get_user_activity_timeseries(db_df, user_ts_kwargs):
+def get_user_activity_timeseries(db_df, user_ts_kwargs,col="Domain_Name"):
     process_user_timeseries = partial(process_activity_timeseries,
                                       **user_ts_kwargs)
     process_user_timeseries.__name__ = process_activity_timeseries.__name__
-    user_timeseries = db_df[["Domain_Name", "Device_ID"
-                             ]].groupby(["Domain_Name", "Device_ID"
+    user_timeseries = db_df[[col, "Device_ID"
+                             ]].groupby([col, "Device_ID"
                                          ]).apply(process_user_timeseries)
     return user_timeseries
 
 
 def get_user_domain_scores(domain_activity_timeseries,
-                           user_activity_timeseries):
+                           user_activity_timeseries,col="Domain_Name"):
     # Merge domain and user timeseries data more efficiently
     merged_timeseries_df = domain_activity_timeseries[[
         "p_1|active", "bin_activity"
     ]].reset_index().merge(user_activity_timeseries.reset_index(),
                            how="inner",
-                           on=["Domain_Name", "Datetime"]).set_index(
-                               ["Datetime", "Domain_Name", "Device_ID"])
+                           on=[col, "Datetime"]).set_index(
+                               ["Datetime", col, "Device_ID"])
 
     # Filter for active periods first to reduce data size
     merged_timeseries_df = merged_timeseries_df[
@@ -122,7 +122,7 @@ def get_user_domain_scores(domain_activity_timeseries,
     # Calculate scores directly
     # Calculate relative activity using transform for vectorized operation
     group_sums = merged_timeseries_df.groupby(
-        ['Domain_Name', 'Device_ID'])['bin_activity'].transform('sum')
+        [col, 'Device_ID'])['bin_activity'].transform('sum')
 
     # Vectorized division
     merged_timeseries_df[
@@ -134,7 +134,7 @@ def get_user_domain_scores(domain_activity_timeseries,
         (merged_timeseries_df["relative_active_bins_activity"])
 
     # Get final scores with optimized groupby
-    final_scores = merged_timeseries_df.groupby(["Device_ID", "Domain_Name"
+    final_scores = merged_timeseries_df.groupby(["Device_ID", col
                                                  ])["weighted_score"].sum()
 
     # Create pivot table efficiently

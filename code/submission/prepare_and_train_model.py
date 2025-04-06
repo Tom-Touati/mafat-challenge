@@ -4,16 +4,18 @@ from sklearn.feature_selection import RFE
 from sklearn.metrics import roc_auc_score
 
 
-def join_features(device_targets,
-                  weighted_final_scores=None,
-                  domain_usage_proportion=None,
-                  cls_proportion=None,
-                  psd_df=None,
-                  domains_visited_proportion=None,
-                  mean_probability_score=None,
-                  max_domain_usage=None,
-                  user_url_score=None,
-                  ):
+def join_features(
+    device_targets,
+    weighted_final_scores=None,
+    domain_usage_proportion=None,
+    cls_proportion=None,
+    psd_df=None,
+    domains_visited_proportion=None,
+    mean_probability_score=None,
+    max_domain_usage=None,
+    user_url_score=None,
+    cls_final_scores=None,
+):
     final_features = device_targets.set_index(
         "Device_ID") if device_targets is not None else None
 
@@ -64,11 +66,15 @@ def join_features(device_targets,
         print("max_domain_usage")
         print(max_domain_usage.stack().describe())
     if user_url_score is not None:
-        final_features = final_features.join(user_url_score.rename(
-            columns=lambda x: "user_url_" + str(x)),
-                                             how="left")
+        final_features = final_features.join(
+            user_url_score.rename(columns=lambda x: "user_url_" + str(x)),
+            how="left")
         print("user_url_score")
         print(user_url_score.stack().describe())
+    if cls_final_scores is not None:
+        final_features = final_features.join(cls_final_scores.rename(
+            columns=lambda x: "cls_final_scores_" + str(x)),
+                                             how="left")
     # final_features = final_features.join(device_domain_PCA,how="left")
     # if active_days is not None:
     #     final_features = final_features.join(active_days,how="left")
@@ -85,11 +91,11 @@ def prepare_model_data(final_features, train_devices, test_device_ids):
     y_train = final_features[final_features.index.isin(
         train_devices)]['Target']
 
-    X_test = final_features[final_features.index.isin(test_device_ids)].drop(
-        'Target', axis=1)
-    y_test = final_features[final_features.index.isin(
-        test_device_ids)]['Target']
-    return X_train, y_train, X_test[X_train.columns], y_test
+    # X_test = final_features[final_features.index.isin(test_device_ids)].drop(
+        # 'Target', axis=1)
+    # y_test = final_features[final_features.index.isin(
+        # test_device_ids)]['Target']
+    return X_train, y_train#, X_test[X_train.columns], y_test
 
 
 def train_model(X_train, y_train, X_test=None, y_test=None, params=None):
@@ -106,7 +112,7 @@ def train_model(X_train, y_train, X_test=None, y_test=None, params=None):
         test_prediction = selector.estimator_.predict(X_test[best_features])
         test_auc = round(roc_auc_score(y_test, test_prediction), 3)
         return test_auc, selector, best_features, y_test, test_prediction
-    return None, selector, best_features, None, None
+    return selector, best_features
 
 
 def train_without_selection(X_train,

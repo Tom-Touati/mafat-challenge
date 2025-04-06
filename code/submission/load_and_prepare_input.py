@@ -56,10 +56,13 @@ def get_initial_train_data(db_df,
                            test_size=0.2,
                            random_state=42,
                            min_domain_devices=10,
-                           n_devices_hist=False):
+                           n_devices_hist=False,
+                           train_devices=None,
+                           test_device_ids=None):
     device_targets = db_df.groupby("Device_ID")["Target"].first().reset_index()
-    train_devices, test_device_ids = get_train_test_devices(
-        device_targets, test_size=test_size, random_state=random_state)
+    if train_devices is None or test_device_ids is None:
+        train_devices, test_device_ids = get_train_test_devices(
+            device_targets, test_size=test_size, random_state=random_state)
     train_df = db_df[db_df["Device_ID"].isin(train_devices)]
     devices_per_domain = train_df.groupby("Domain_Name")["Device_ID"].nunique()
 

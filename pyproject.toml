@@ -9,7 +9,7 @@ include = "code"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-ray = {extras = ["default"], version = "^2.43.0"}
+ray = {extras = ["tune"], version = "^2.44.1"}
 pandas = "*"
 numpy = "*"
 scikit-learn = "*"
@@ -21,7 +21,7 @@ ipywidgets = "*"
 ipykernel = "*"
 modin = "*"
 sqlalchemy = "^2.0.39"
-pyarrow = "^19.0.1"
+pyarrow = "17"
 memray = "^1.16.0"
 neptune = "^1.13.0"
 fancyimpute = "^0.7.0"

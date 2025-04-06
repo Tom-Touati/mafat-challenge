@@ -36,42 +36,6 @@ def load_cls_data_from_db(con, domain_cls=False, only_domain=False):
         print(f"Error loading data: {e}")
         raise
 
-
-def load_and_prepare_data(data_type="domain"):
-    freeze_support()
-    dbfile = '../../data/training_set.db'
-
-    conn = ModinDatabaseConnection('sqlalchemy', f'sqlite:///{dbfile}')
-
-    # Can use get_connection to get underlying sqlalchemy engine
-    conn.get_connection()
-    if data_type == "domain":
-        db_df = load_domain_data_from_db(conn)
-    elif data_type == "cls":
-        db_df = load_cls_data_from_db(conn)
-
-    print(db_df.head())
-    del conn
-    db_df['Datetime'] = mpd.to_datetime(db_df['Datetime'])
-    db_df.set_index('Datetime', inplace=True)
-    if data_type == "domain":
-        db_df = db_df.astype({
-            'Domain_Name': 'uint32',
-            'Device_ID': 'uint32',
-            'Target': 'uint8'
-        })
-    elif data_type == "cls":
-        db_df = db_df.astype({
-            'Device_ID': 'uint32',
-            'Domain_cls1': 'uint32',
-            'Domain_cls2': 'uint32',
-            'Domain_cls3': 'uint32',
-            'Domain_cls4': 'uint32',
-            'Target': 'uint32'
-        })
-    return db_df
-
-
 # prepare training data
 import matplotlib.pyplot as plt
 #train test split
@@ -111,5 +75,58 @@ def get_initial_train_data(db_df,
     train_df = train_df[train_df["Domain_Name"].isin(devices_per_domain.index)]
     return train_df, train_devices, test_device_ids, device_targets, devices_per_domain
 
+def load_url_data_from_db(con):
 
+    try:
+        device_ids_query = f"""SELECT Datetime,Device_ID,URL,Target
+        from data
+        WHERE Domain_Name != 1732927
+        """
+        df = mpd.read_sql(device_ids_query, con)._repartition()
+        return df
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        raise
+
+
+def load_and_prepare_data(data_type="domain"):
+    freeze_support()
+    dbfile = '../../data/training_set.db'
+
+    conn = ModinDatabaseConnection('sqlalchemy', f'sqlite:///{dbfile}')
+
+    # Can use get_connection to get underlying sqlalchemy engine
+    conn.get_connection()
+    if data_type == "domain":
+        db_df = load_domain_data_from_db(conn)
+    elif data_type == "cls":
+        db_df = load_cls_data_from_db(conn)
+    elif data_type == "url":
+        db_df = load_url_data_from_db(conn)
+    print(db_df.head())
+    del conn
+    db_df['Datetime'] = mpd.to_datetime(db_df['Datetime'])
+    db_df.set_index('Datetime', inplace=True)
+    if data_type == "domain":
+        db_df = db_df.astype({
+            'Domain_Name': 'uint32',
+            'Device_ID': 'uint32',
+            'Target': 'uint8'
+        })
+    elif data_type == "cls":
+        db_df = db_df.astype({
+            'Device_ID': 'uint32',
+            'Domain_cls1': 'uint32',
+            'Domain_cls2': 'uint32',
+            'Domain_cls3': 'uint32',
+            'Domain_cls4': 'uint32',
+            'Target': 'uint32'
+        })
+    else:
+        db_df = db_df.astype({
+            'URL': 'uint32',
+            'Device_ID': 'uint32',
+            'Target': 'uint8'
+        })
+    return db_df
 # Add this line

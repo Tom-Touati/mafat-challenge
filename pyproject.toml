@@ -28,6 +28,7 @@ fancyimpute = "^0.7.0"
 missingpy = "^0.2.0"
 missforest = "^4.2.3"
 implicit = "^0.7.2"
+xgboost-ray = "^0.1.19"
 
 [build-system]
 requires = ["poetry-core"]

@@ -56,7 +56,7 @@ def _calculate_p1_if_active(domain_activity_timeseries):
     pass
 
 
-def get_domain_activity_timeseries(train_df, domain_ts_kwargs,col="Domain"):
+def get_domain_activity_timeseries(train_df, domain_ts_kwargs,col="Domain_Name"):
     process_domain_timeseries = partial(process_activity_timeseries,
                                         **domain_ts_kwargs)
     process_domain_timeseries.__name__ = process_activity_timeseries.__name__
